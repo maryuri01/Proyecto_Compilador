@@ -37,15 +37,19 @@ class Ventana:
 # gramatica establecida 
 
 GRAMATICA = r"""
-    programa: ventana
+    programa: ventana EOF
 
     ventana: KW_VENTANA STRING atributos? bloque
 
-    bloque: LLAVE_IZQ widget* LLAVE_DER
+    bloque: LLAVE_IZQ contenido* LLAVE_DER
 
-    widget: widget_tag STRING atributos? bloque?
+    ?contenido: panel | widget
 
-    ?widget_tag: KW_PANEL | KW_INPUT | KW_TEXTAREA | KW_CHECKBOX
+    panel: KW_PANEL STRING atributos? bloque
+
+    widget: widget_tag STRING atributos? 
+
+    ?widget_tag: KW_INPUT | KW_TEXTAREA | KW_CHECKBOX
                | KW_RADIOBUTTON | KW_COMBOBOX | KW_SLIDER | KW_LABEL
                | KW_IMAGEN | KW_BOTON
 
@@ -69,6 +73,7 @@ GRAMATICA = r"""
     %declare KW_TRUE KW_FALSE
     %declare LLAVE_IZQ LLAVE_DER CORCHETE_IZQ CORCHETE_DER IGUAL COMA
     %declare STRING NUMERO COLOR_HEX IDENTIFICADOR
+    %declare EOF 
 """
 
 
@@ -137,12 +142,19 @@ class ASTBuilder(Transformer):
                 contenido = list(extra)
         return atributos, contenido
 
-    def widget(self, items):
+    def panel(self, items):
         tipo = str(items[0])          
         resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, contenido = self._separar_extras(resto[1:])
         return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=contenido)
+
+    def widget(self, items):
+        tipo = str(items[0])          
+        resto = self._significativos(items[1:])
+        titulo = resto[0]
+        atributos, _ = self._separar_extras(resto[1:])
+        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=[])
 
     def ventana(self, items):
         resto = self._significativos(items)   
@@ -194,7 +206,7 @@ def _describir(nombre_terminal: str) -> str:
 
 
 _WIDGET_TAGS_EN_ORDEN = [
-    "KW_PANEL", "KW_INPUT", "KW_TEXTAREA", "KW_CHECKBOX", "KW_RADIOBUTTON",
+    "KW_INPUT", "KW_TEXTAREA", "KW_CHECKBOX", "KW_RADIOBUTTON",
     "KW_COMBOBOX", "KW_SLIDER", "KW_LABEL", "KW_IMAGEN", "KW_BOTON",
 ]
 _TERMINALES_CON_VALOR_VARIABLE = {"STRING", "NUMERO", "COLOR_HEX", "IDENTIFICADOR"}
@@ -241,7 +253,7 @@ def parse(tokens: List[TokenLexico]) -> Ventana:
     el AST, construyendolo de a poco mediante lo que cada atributo pueda 
     contener
     """
-    tokens_lark = [_a_token_lark(t) for t in tokens if t.tipo != "EOF"]
+    tokens_lark = [_a_token_lark(t) for t in tokens]
 
     try:
         arbol = _parser.parse(tokens_lark)

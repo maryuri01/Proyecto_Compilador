@@ -35,3 +35,4 @@ Ventana "Sistema de Registro" [ancho=800, alto=600] {
         parse(tokenize('Ventana "x" {'))
     except ErrorSintactico as e:
         print(e)
+
