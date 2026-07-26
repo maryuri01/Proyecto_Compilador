@@ -1,4 +1,5 @@
-﻿# Proyecto_Compilador
+﻿
+# Proyecto_Compilador
 
 ## Instalar la libreria lark para construccion del arbol sintactico
 Utilicen el siguiente comando --> pip install lark
