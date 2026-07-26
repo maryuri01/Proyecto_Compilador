@@ -9,6 +9,7 @@ from lark import Lark, Transformer
 from lark.lexer import Lexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput, UnexpectedToken
 from tokenizador import Token as TokenLexico  
+from lark import Lark, Transformer, v_args
 
 
 # aqui se definen lo que puede contener cada atributo "principal"
@@ -17,12 +18,16 @@ from tokenizador import Token as TokenLexico
 class Atributo:
     nombre: str
     valor: object  # pueden ser string, booleanos, enteros
+    columna: int = None
+    linea: int = None
 
 
 @dataclass
 class Widget:
     tipo: str                                    
     titulo: str
+    columna: int = None
+    linea: int = None
     atributos: List[Atributo] = field(default_factory=list)
     contenido: List["Widget"] = field(default_factory=list)  
 
@@ -87,7 +92,7 @@ class LexerExterno(Lexer):
             yield tok
 
 
-_parser = Lark(GRAMATICA, start="programa", parser="lalr", lexer=LexerExterno)
+_parser = Lark(GRAMATICA, start="programa", parser="lalr", lexer=LexerExterno, propagate_positions=True)
 
 # Aqui se empieza a generar el AST a partir de las listas que pueda contener
 class _ListaAtributos(list):
@@ -97,7 +102,7 @@ class _ListaAtributos(list):
 class _ListaHijos(list):
     pass
 
-
+@v_args(meta=True)
 class ASTBuilder(Transformer):
 
     # tipos de atributos que pueden existir
@@ -113,24 +118,24 @@ class ASTBuilder(Transformer):
     def IDENTIFICADOR(self, tok):
         return str(tok.value)
 
-    def booleano(self, items):
+    def booleano(self, meta, items):
         return str(items[0]) == "true"
 
-    def lista(self, items):
+    def lista(self, meta, items):
         return self._significativos(items)
 
     @staticmethod
     def _significativos(items):
         return [it for it in items if not isinstance(it, LarkToken)]
 
-    def atributo(self, items):
+    def atributo(self, meta, items):
         nombre, valor = self._significativos(items)
-        return Atributo(nombre=nombre, valor=valor)
+        return Atributo(nombre=nombre, valor=valor, linea=meta.line, columna=meta.column)
 
-    def atributos(self, items):
+    def atributos(self, meta, items):
         return _ListaAtributos(self._significativos(items))
 
-    def bloque(self, items):
+    def bloque(self, meta, items):
         return _ListaHijos(self._significativos(items))
 
     def _separar_extras(self, items):
@@ -142,27 +147,29 @@ class ASTBuilder(Transformer):
                 contenido = list(extra)
         return atributos, contenido
 
-    def panel(self, items):
+    def panel(self, meta, items):
         tipo = str(items[0])          
         resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, contenido = self._separar_extras(resto[1:])
-        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=contenido)
+        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=contenido,
+                      linea=meta.line, columna=meta.column,)
 
-    def widget(self, items):
+    def widget(self, meta, items):
         tipo = str(items[0])          
         resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, _ = self._separar_extras(resto[1:])
-        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=[])
+        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=[],
+                      linea=meta.line, columna=meta.column,)
 
-    def ventana(self, items):
+    def ventana(self, meta, items):
         resto = self._significativos(items)   
         titulo = resto[0]
         atributos, contenido = self._separar_extras(resto[1:])
         return Ventana(titulo=titulo, atributos=atributos, contenido=contenido)
 
-    def programa(self, items):
+    def programa(self, meta, items):
         return items[0]
 
 # validaciones para errores sintacticos, informa que tipo de error puede haber y en donde
