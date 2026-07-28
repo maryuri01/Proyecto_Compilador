@@ -1,35 +1,28 @@
-
-# Aqui se genera el parser --> convierte los tokens establecidos
-# en un AST, que mantiene un orden segun lo que pueda contener
-# cada token. 
-
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 from lark import Lark, Transformer
 from lark.lexer import Lexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput, UnexpectedToken
 from tokenizador import Token as TokenLexico  
-from lark import v_args
 
 
 # aqui se definen lo que puede contener cada atributo "principal"
-
 @dataclass
 class Atributo:
     nombre: str
     valor: object  # pueden ser string, booleanos, enteros
-    columna: int = None
-    linea: int = None
+    linea: Optional[int] = None
+    columna: Optional[int] = None
 
 
 @dataclass
 class Widget:
     tipo: str                                    
     titulo: str
-    columna: int = None
-    linea: int = None
     atributos: List[Atributo] = field(default_factory=list)
-    contenido: List["Widget"] = field(default_factory=list)  
+    contenido: List["Widget"] = field(default_factory=list)
+    linea: Optional[int] = None
+    columna: Optional[int] = None
 
 
 @dataclass # ventana puede tener varios atributos y widgets
@@ -37,6 +30,8 @@ class Ventana:
     titulo: str
     atributos: List[Atributo] = field(default_factory=list)
     contenido: List[Widget] = field(default_factory=list)
+    linea: Optional[int] = None
+    columna: Optional[int] = None
 
 
 # gramatica establecida 
@@ -92,7 +87,7 @@ class LexerExterno(Lexer):
             yield tok
 
 
-_parser = Lark(GRAMATICA, start="programa", parser="lalr", lexer=LexerExterno, propagate_positions=True)
+_parser = Lark(GRAMATICA, start="programa", parser="lalr", lexer=LexerExterno)
 
 # Aqui se empieza a generar el AST a partir de las listas que pueda contener
 class _ListaAtributos(list):
@@ -102,40 +97,69 @@ class _ListaAtributos(list):
 class _ListaHijos(list):
     pass
 
-@v_args(meta=True)
+
+# Cambie aqui: subclases de str/int 
+#Mauricio estuvo aqui
+class _StrPos(str):
+    def __new__(cls, valor, linea, columna):
+        obj = super().__new__(cls, valor)
+        obj.linea = linea
+        obj.columna = columna
+        return obj
+
+
+# cambie aqui: segun el Catalogo de Tokens, STRING (entre comillas) e
+# IDENTIFICADOR (palabra suelta) son conceptualmente distintos, aunque los
+# dos terminen siendo texto (str) en Python. Sin esta distincion, la
+# validacion semantica no puede saber si "guardarDatos" en click=guardarDatos
+# vino con o sin comillas. Se crean subclases para poder usar isinstance().
+#Mauricio estuvo aqui
+class StringLiteral(_StrPos):
+    """Valor que vino de un token STRING, es decir iba entre comillas."""
+    pass
+
+
+class Identificador(_StrPos):
+    """Valor que vino de un token IDENTIFICADOR, es decir sin comillas."""
+    pass
+
+
 class ASTBuilder(Transformer):
 
     # tipos de atributos que pueden existir
     def STRING(self, tok):
-        return tok.value[1:-1]          
+        return StringLiteral(tok.value[1:-1], tok.line, tok.column)
 
     def NUMERO(self, tok):
         return int(tok.value)
 
     def COLOR_HEX(self, tok):
-        return str(tok.value)
+        return _StrPos(tok.value, tok.line, tok.column)
 
     def IDENTIFICADOR(self, tok):
-        return str(tok.value)
+        return Identificador(tok.value, tok.line, tok.column)
 
-    def booleano(self, meta, items):
+    def booleano(self, items):
         return str(items[0]) == "true"
 
-    def lista(self, meta, items):
+    def lista(self, items):
         return self._significativos(items)
 
     @staticmethod
     def _significativos(items):
         return [it for it in items if not isinstance(it, LarkToken)]
 
-    def atributo(self, meta, items):
+    def atributo(self, items):
         nombre, valor = self._significativos(items)
-        return Atributo(nombre=nombre, valor=valor, linea=meta.line, columna=meta.column)
+        return Atributo(
+            nombre=str(nombre), valor=valor,
+            linea=nombre.linea, columna=nombre.columna,
+        )
 
-    def atributos(self, meta, items):
+    def atributos(self, items):
         return _ListaAtributos(self._significativos(items))
 
-    def bloque(self, meta, items):
+    def bloque(self, items):
         return _ListaHijos(self._significativos(items))
 
     def _separar_extras(self, items):
@@ -147,29 +171,39 @@ class ASTBuilder(Transformer):
                 contenido = list(extra)
         return atributos, contenido
 
-    def panel(self, meta, items):
-        tipo = str(items[0])          
+    def panel(self, items):
+        tag_tok = items[0]   
+        tipo = str(tag_tok)
         resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, contenido = self._separar_extras(resto[1:])
-        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=contenido,
-                      linea=meta.line, columna=meta.column,)
+        return Widget(
+            tipo=tipo, titulo=titulo, atributos=atributos, contenido=contenido,
+            linea=tag_tok.line, columna=tag_tok.column,
+        )
 
-    def widget(self, meta, items):
-        tipo = str(items[0])          
+    def widget(self, items):
+        tag_tok = items[0]   
+        tipo = str(tag_tok)
         resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, _ = self._separar_extras(resto[1:])
-        return Widget(tipo=tipo, titulo=titulo, atributos=atributos, contenido=[],
-                      linea=meta.line, columna=meta.column,)
+        return Widget(
+            tipo=tipo, titulo=titulo, atributos=atributos, contenido=[],
+            linea=tag_tok.line, columna=tag_tok.column,
+        )
 
-    def ventana(self, meta, items):
-        resto = self._significativos(items)   
+    def ventana(self, items):
+        tag_tok = items[0]   
+        resto = self._significativos(items[1:])
         titulo = resto[0]
         atributos, contenido = self._separar_extras(resto[1:])
-        return Ventana(titulo=titulo, atributos=atributos, contenido=contenido)
+        return Ventana(
+            titulo=titulo, atributos=atributos, contenido=contenido,
+            linea=tag_tok.line, columna=tag_tok.column,
+        )
 
-    def programa(self, meta, items):
+    def programa(self, items):
         return items[0]
 
 # validaciones para errores sintacticos, informa que tipo de error puede haber y en donde
@@ -270,5 +304,3 @@ def parse(tokens: List[TokenLexico]) -> Ventana:
         raise ErrorSintactico(_mensaje_error(e), linea, columna) from e
 
     return ASTBuilder().transform(arbol)
-
-
