@@ -9,7 +9,7 @@ from lark import Lark, Transformer
 from lark.lexer import Lexer, Token as LarkToken
 from lark.exceptions import UnexpectedInput, UnexpectedToken
 from tokenizador import Token as TokenLexico  
-from lark import Lark, Transformer, v_args
+from lark import v_args
 
 
 # aqui se definen lo que puede contener cada atributo "principal"
