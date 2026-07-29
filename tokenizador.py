@@ -113,15 +113,3 @@ def tokenize(codigo_fuente):
     return tokens
 
 
-if __name__ == "__main__":
-    ejemplo = '''// Formulario de registro de usuario
-Ventana "Sistema de Registro" [ancho=800, alto=600] {
-    Panel "encabezado" [color=gris] {
-        Label "Formulario de Registro" [color=negro, tamañoFuente=20]
-        Imagen "logo" [src="logo.png", ancho=100, alto=100]
-    }
-    Boton "Enviar" [color=#3498DB, click=enviarFormulario]
-}'''
-
-    for t in tokenize(ejemplo):
-        print(t)
