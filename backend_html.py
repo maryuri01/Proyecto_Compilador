@@ -1,22 +1,25 @@
-# -*- coding: utf-8 -*-
-
 from parser import Ventana, Widget
 
-# Mapeo de colores a valores CSS válidos
+# Mapeo de colores a valores CSS válidos (paleta suavizada, no colores "puros")
 MAPEO_COLORES = {
-    "azul": "blue",
-    "rojo": "red",
-    "verde": "green",
-    "amarillo": "yellow",
-    "negro": "black",
-    "blanco": "white",
-    "gris": "gray"
+    "azul": "#3B82F6",
+    "rojo": "#E5484D",
+    "verde": "#22A06B",
+    "amarillo": "#F5C518",
+    "negro": "#1A1A1A",
+    "blanco": "#FFFFFF",
+    "gris": "#9AA0A6"
 }
+
+# Nombres de color (en el DSL, no en CSS) que se consideran "claros"
+# y por lo tanto necesitan texto oscuro en vez de blanco encima.
+COLORES_CLAROS = ("blanco", "amarillo")
+
 
 class GeneradorHTML:
     def __init__(self):
         # set para guardar los nombres de las funciones JS y evitar duplicados
-        self.funciones_js = set()
+        self.funciones_js = set() 
 
     def generar(self, ast: Ventana) -> str:
         """
@@ -34,14 +37,110 @@ class GeneradorHTML:
     <title>{ast.titulo}</title>
     <style>
         /* CSS Base para normalizar la vista */
-        body {{ font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }}
-        .panel {{ border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px; }}
-        .widget-container {{ margin-bottom: 10px; }}
-        label {{ margin-right: 10px; font-weight: bold; }}
+        * {{ box-sizing: border-box; }}
+
+        body {{
+            font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }}
+
+        #ventana-principal {{
+            background-color: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            padding: 32px;
+            margin: 0 auto;
+        }}
+
+        .panel {{
+            border: 1px solid #eee;
+            background-color: #f8f9fb;
+            padding: 20px;
+            margin: 16px 0;
+            border-radius: 10px;
+        }}
+
+        .widget-container {{ margin-bottom: 16px; }}
+
+        label {{
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #333;
+        }}
+
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+        textarea,
+        select {{
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }}
+
+        input:focus, textarea:focus, select:focus {{
+            outline: none;
+            border-color: #3B82F6;
+        }}
+
+        textarea {{ resize: vertical; }}
+
+        input[type="checkbox"], input[type="radio"] {{
+            width: auto;
+            margin-right: 6px;
+            vertical-align: middle;
+        }}
+
+        input[type="range"] {{ width: 100%; }}
+
+        button {{
+            padding: 10px 22px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }}
+
+        button:hover {{ opacity: 0.88; }}
+        button:active {{ transform: scale(0.98); }}
+
+        #toast {{
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background-color: #1A1A1A;
+            color: white;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }}
+
+        #toast.visible {{
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }}
     </style>
 </head>
 <body>
     {cuerpo_html}
+
+    <div id="toast"></div>
 
     <!-- Scripts generados dinámicamente -->
     {scripts_js}
@@ -94,13 +193,13 @@ class GeneradorHTML:
             identificador = attrs_dict.get("id", titulo.lower().replace(" ", "_"))
             texto = attrs_dict.get("texto", titulo)
             marcado = "checked" if attrs_dict.get("marcado") else ""
-            html = f'<div class="widget-container"><input type="checkbox" id="{identificador}" {marcado}> <label for="{identificador}">{texto}</label></div>'
+            html = f'<div class="widget-container"><input type="checkbox" id="{identificador}" {marcado}> <label for="{identificador}" style="display:inline;">{texto}</label></div>'
 
         elif tipo == "RadioButton":
             identificador = attrs_dict.get("id", titulo.lower().replace(" ", "_"))
             grupo = attrs_dict.get("grupo", "default")
             texto = attrs_dict.get("texto", titulo)
-            html = f'<div class="widget-container"><input type="radio" id="{identificador}" name="{grupo}"> <label for="{identificador}">{texto}</label></div>'
+            html = f'<div class="widget-container"><input type="radio" id="{identificador}" name="{grupo}"> <label for="{identificador}" style="display:inline;">{texto}</label></div>'
 
         elif tipo == "ComboBox":
             identificador = attrs_dict.get("id", titulo.lower().replace(" ", "_"))
@@ -156,13 +255,15 @@ class GeneradorHTML:
             elif nombre == "color":
                 valor_str = str(valor)
                 # Si es un color en hexadecimal, se usa directamente si no se busca en el mapeo
-                color_css = valor_str if valor_str.startswith("#") else MAPEO_COLORES.get(valor_str.lower(), "black")
+                color_css = valor_str if valor_str.startswith("#") else MAPEO_COLORES.get(valor_str.lower(), "#1A1A1A")
                 
                 if es_contenedor or tipo_widget == "Boton":
                     css.append(f"background-color: {color_css};")
-                    # Contraste de texto para botones/paneles oscuros
-                    if color_css not in ["white", "yellow"]: 
-                        css.append("color: white;") 
+                    # Contraste de texto: si el color del DSL es claro (blanco/amarillo), texto oscuro
+                    if valor_str.lower() in COLORES_CLAROS:
+                        css.append("color: #1A1A1A;")
+                    else:
+                        css.append("color: white;")
                 else:
                     css.append(f"color: {color_css};")
 
@@ -178,9 +279,22 @@ class GeneradorHTML:
         js_funciones = "\n".join([
             f"        function {func}() {{\n"
             f"            console.log('Evento ejecutado: {func} ()');\n"
-            f"            alert('La función {func} ha sido llamada.');\n"
+            f"            mostrarToast('{func} ejecutada correctamente');\n"
             f"        }}" 
             for func in self.funciones_js
         ])
 
-        return f"<script>\n{js_funciones}\n    </script>"
+        js_toast = """
+        let toastTimeout;
+        function mostrarToast(mensaje) {
+            const toast = document.getElementById('toast');
+            toast.textContent = mensaje;
+            toast.classList.add('visible');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 2500);
+        }
+        """
+
+        return f"<script>\n{js_toast}\n{js_funciones}\n    </script>"
