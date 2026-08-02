@@ -85,7 +85,7 @@ if __name__ == "__main__":
     ejecutar_pipeline(dsl_error_semantico, "Caso 4: atributo invalido (deberia fallar en la validacion semantica)")
     print()
 
-    # 5. El ejemplo original y mas simple del documento del proyecto 
+    # 5. El ejemplo original del proyecto
     dsl_ejemplo_simple = '''Ventana "Mi App" {
     Boton "Guardar" [color=azul, click=guardarDatos]
     Input "Nombre"

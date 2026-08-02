@@ -14,7 +14,7 @@ class Atributo:
     linea: Optional[int] = None
     columna: Optional[int] = None
 
-
+ 
 @dataclass
 class Widget:
     tipo: str                                    
@@ -108,12 +108,7 @@ class _StrPos(str):
         return obj
 
 
-# cambie aqui: segun el Catalogo de Tokens, STRING (entre comillas) e
-# IDENTIFICADOR (palabra suelta) son conceptualmente distintos, aunque los
-# dos terminen siendo texto (str) en Python. Sin esta distincion, la
-# validacion semantica no puede saber si "guardarDatos" en click=guardarDatos
-# vino con o sin comillas. Se crean subclases para poder usar isinstance().
-#Mauricio estuvo aqui
+
 class StringLiteral(_StrPos):
     """Valor que vino de un token STRING, es decir iba entre comillas."""
     pass

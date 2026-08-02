@@ -15,3 +15,6 @@ Un lenguaje ultra simplificado para describir layouts visuales que se compile a 
 - Conversion de los tokens a árbol.
 - Manejo de errores sintácticos.
 - Función lista para empezar con el backend.
+
+## Instalar la libreria customtkinter para generacion 
+- Utilizar el siguiente comando -- pip install customtkinter pillow
